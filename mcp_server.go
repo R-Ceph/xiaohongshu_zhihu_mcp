@@ -433,7 +433,57 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 13)
+	// --- 知乎工具 ---
+
+	// 工具 14: 检查知乎登录状态
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "zhihu_check_login_status",
+			Description: "检查知乎登录状态",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Check Zhihu Login Status",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("zhihu_check_login_status", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleZhihuCheckLoginStatus(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 15: 获取知乎登录二维码
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "zhihu_get_login_qrcode",
+			Description: "获取知乎登录二维码（返回 Base64 图片和超时时间）",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get Zhihu Login QR Code",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("zhihu_get_login_qrcode", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleZhihuGetLoginQrcode(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	// 工具 16: 删除知乎 cookies
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "zhihu_delete_cookies",
+			Description: "删除知乎 cookies 文件，重置知乎登录状态。删除后需要重新登录。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:           "Delete Zhihu Cookies",
+				DestructiveHint: boolPtr(true),
+			},
+		},
+		withPanicRecovery("zhihu_delete_cookies", func(ctx context.Context, req *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleZhihuDeleteCookies(ctx)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 16)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

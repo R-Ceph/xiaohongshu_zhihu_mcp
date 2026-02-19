@@ -270,6 +270,49 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 	respondSuccess(c, result, result.Message)
 }
 
+// --- 知乎 HTTP API handlers ---
+
+// zhihuCheckLoginStatusHandler 检查知乎登录状态
+func (s *AppServer) zhihuCheckLoginStatusHandler(c *gin.Context) {
+	status, err := s.zhihuService.CheckLoginStatus(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "ZHIHU_STATUS_CHECK_FAILED",
+			"检查知乎登录状态失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, status, "检查知乎登录状态成功")
+}
+
+// zhihuGetLoginQrcodeHandler 获取知乎登录二维码
+func (s *AppServer) zhihuGetLoginQrcodeHandler(c *gin.Context) {
+	result, err := s.zhihuService.GetLoginQrcode(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "ZHIHU_QRCODE_FAILED",
+			"获取知乎登录二维码失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "获取知乎登录二维码成功")
+}
+
+// zhihuDeleteCookiesHandler 删除知乎 cookies
+func (s *AppServer) zhihuDeleteCookiesHandler(c *gin.Context) {
+	err := s.zhihuService.DeleteCookies(c.Request.Context())
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "ZHIHU_DELETE_COOKIES_FAILED",
+			"删除知乎 cookies 失败", err.Error())
+		return
+	}
+
+	cookiePath := cookies.GetCookiesFilePathForPlatform("zhihu")
+	respondSuccess(c, map[string]interface{}{
+		"cookie_path": cookiePath,
+		"platform":    "zhihu",
+		"message":     "知乎 Cookies 已成功删除，登录状态已重置。下次操作时需要重新登录知乎。",
+	}, "删除知乎 cookies 成功")
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

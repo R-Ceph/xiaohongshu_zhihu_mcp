@@ -28,9 +28,10 @@ func main() {
 
 	// 初始化服务
 	xiaohongshuService := NewXiaohongshuService()
+	zhihuService := NewZhihuService()
 
 	// 创建并启动应用服务器
-	appServer := NewAppServer(xiaohongshuService)
+	appServer := NewAppServer(xiaohongshuService, zhihuService)
 	if err := appServer.Start(port); err != nil {
 		logrus.Fatalf("failed to run server: %v", err)
 	}

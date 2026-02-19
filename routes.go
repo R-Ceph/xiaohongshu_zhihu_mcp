@@ -38,6 +38,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	// API 路由组
 	api := router.Group("/api/v1")
 	{
+		// 小红书
 		api.GET("/login/status", appServer.checkLoginStatusHandler)
 		api.GET("/login/qrcode", appServer.getLoginQrcodeHandler)
 		api.DELETE("/login/cookies", appServer.deleteCookiesHandler)
@@ -51,6 +52,11 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
+
+		// 知乎
+		api.GET("/zhihu/login/status", appServer.zhihuCheckLoginStatusHandler)
+		api.GET("/zhihu/login/qrcode", appServer.zhihuGetLoginQrcodeHandler)
+		api.DELETE("/zhihu/login/cookies", appServer.zhihuDeleteCookiesHandler)
 	}
 
 	return router

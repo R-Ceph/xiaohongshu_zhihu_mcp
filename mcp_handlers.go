@@ -631,6 +631,89 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	}
 }
 
+// --- 知乎 MCP handlers ---
+
+// handleZhihuCheckLoginStatus 处理检查知乎登录状态
+func (s *AppServer) handleZhihuCheckLoginStatus(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 检查知乎登录状态")
+
+	status, err := s.zhihuService.CheckLoginStatus(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "检查知乎登录状态失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	var resultText string
+	if status.IsLoggedIn {
+		resultText = "✅ 知乎已登录\n\n你可以使用知乎相关功能了。"
+	} else {
+		resultText = "❌ 知乎未登录\n\n请使用 zhihu_get_login_qrcode 工具获取二维码进行登录。"
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: resultText}},
+	}
+}
+
+// handleZhihuGetLoginQrcode 处理获取知乎登录二维码
+func (s *AppServer) handleZhihuGetLoginQrcode(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 获取知乎登录扫码图片")
+
+	result, err := s.zhihuService.GetLoginQrcode(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取知乎登录扫码图片失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	if result.IsLoggedIn {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "知乎当前已处于登录状态"}},
+		}
+	}
+
+	now := time.Now()
+	deadline := func() string {
+		d, err := time.ParseDuration(result.Timeout)
+		if err != nil {
+			return now.Format("2006-01-02 15:04:05")
+		}
+		return now.Add(d).Format("2006-01-02 15:04:05")
+	}()
+
+	contents := []MCPContent{
+		{Type: "text", Text: "请用知乎 App 在 " + deadline + " 前扫码登录 👇"},
+		{
+			Type:     "image",
+			MimeType: "image/png",
+			Data:     strings.TrimPrefix(result.Img, "data:image/png;base64,"),
+		},
+	}
+	return &MCPToolResult{Content: contents}
+}
+
+// handleZhihuDeleteCookies 处理删除知乎 cookies
+func (s *AppServer) handleZhihuDeleteCookies(ctx context.Context) *MCPToolResult {
+	logrus.Info("MCP: 删除知乎 cookies，重置登录状态")
+
+	err := s.zhihuService.DeleteCookies(ctx)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "删除知乎 cookies 失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	cookiePath := cookies.GetCookiesFilePathForPlatform("zhihu")
+	resultText := fmt.Sprintf("知乎 Cookies 已成功删除，登录状态已重置。\n\n删除的文件路径: %s\n\n下次操作时，需要重新登录知乎。", cookiePath)
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: resultText}},
+	}
+}
+
 // handleReplyComment 处理回复评论
 func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 回复评论")

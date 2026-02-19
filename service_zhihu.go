@@ -142,6 +142,40 @@ func (s *ZhihuService) DeleteCookies(ctx context.Context) error {
 	return cookieLoader.DeleteCookies()
 }
 
+// FetchPage 抓取知乎页面内容并转为 Markdown。
+//
+// Args:
+//
+//	ctx: 上下文
+//	url: 知乎页面 URL
+//
+// Returns:
+//
+//	*zhihu.PageContent: 页面内容
+//	error: 错误信息
+func (s *ZhihuService) FetchPage(ctx context.Context, url string) (*zhihu.PageContent, error) {
+	b := newZhihuBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := zhihu.NewFetchPageAction(page)
+	result, err := action.FetchPage(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+
+	// 自动保存到本地文件
+	if savedPath, saveErr := result.SaveToFile("."); saveErr != nil {
+		logrus.Warnf("自动保存文件失败: %v", saveErr)
+	} else {
+		logrus.Infof("文件已保存: %s", savedPath)
+	}
+
+	return result, nil
+}
+
 func newZhihuBrowser() *headless_browser.Browser {
 	cookiePath := cookies.GetCookiesFilePathForPlatform("zhihu")
 	return browser.NewBrowser(

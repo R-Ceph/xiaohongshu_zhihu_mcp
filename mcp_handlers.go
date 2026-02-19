@@ -714,6 +714,42 @@ func (s *AppServer) handleZhihuDeleteCookies(ctx context.Context) *MCPToolResult
 	}
 }
 
+// handleZhihuFetchPage 处理抓取知乎页面内容
+func (s *AppServer) handleZhihuFetchPage(ctx context.Context, url string) *MCPToolResult {
+	logrus.Infof("MCP: 抓取知乎页面 - %s", url)
+
+	if url == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "抓取失败: 缺少 url 参数"}},
+			IsError: true,
+		}
+	}
+
+	result, err := s.zhihuService.FetchPage(ctx, url)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "抓取知乎页面失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	// 优先返回 Markdown，没有则返回 HTML
+	content := result.Markdown
+	if content == "" {
+		content = result.HTML
+	}
+
+	output := fmt.Sprintf("# %s\n\n**来源**: %s\n", result.Title, result.URL)
+	if result.SavedPath != "" {
+		output += fmt.Sprintf("**已保存到**: %s\n", result.SavedPath)
+	}
+	output += fmt.Sprintf("\n---\n\n%s", content)
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: output}},
+	}
+}
+
 // handleReplyComment 处理回复评论
 func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 回复评论")

@@ -88,6 +88,11 @@ type LikeFeedArgs struct {
 	Unlike    bool   `json:"unlike,omitempty" jsonschema:"是否取消点赞，true为取消点赞，false或未设置则为点赞"`
 }
 
+// ZhihuFetchPageArgs 知乎页面抓取参数
+type ZhihuFetchPageArgs struct {
+	URL string `json:"url" jsonschema:"知乎页面 URL，如 https://www.zhihu.com/question/xxx 或 https://zhuanlan.zhihu.com/p/xxx"`
+}
+
 // FavoriteFeedArgs 收藏参数
 type FavoriteFeedArgs struct {
 	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -483,7 +488,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 16)
+	// 工具 17: 抓取知乎页面内容
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "zhihu_fetch_page",
+			Description: "抓取知乎页面内容并转为 Markdown 格式。支持问答页、专栏文章等。需要先登录知乎。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Fetch Zhihu Page",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("zhihu_fetch_page", func(ctx context.Context, req *mcp.CallToolRequest, args ZhihuFetchPageArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleZhihuFetchPage(ctx, args.URL)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 17)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

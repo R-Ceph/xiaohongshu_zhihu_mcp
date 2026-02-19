@@ -313,6 +313,25 @@ func (s *AppServer) zhihuDeleteCookiesHandler(c *gin.Context) {
 	}, "删除知乎 cookies 成功")
 }
 
+// zhihuFetchPageHandler 抓取知乎页面内容
+func (s *AppServer) zhihuFetchPageHandler(c *gin.Context) {
+	var req ZhihuFetchPageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	result, err := s.zhihuService.FetchPage(c.Request.Context(), req.URL)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "ZHIHU_FETCH_PAGE_FAILED",
+			"抓取知乎页面失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "抓取知乎页面成功")
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

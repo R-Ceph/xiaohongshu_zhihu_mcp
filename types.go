@@ -109,3 +109,8 @@ type ActionResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
+
+// ZhihuFetchPageRequest 知乎页面抓取请求
+type ZhihuFetchPageRequest struct {
+	URL string `json:"url" binding:"required"`
+}

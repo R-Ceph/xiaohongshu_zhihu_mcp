@@ -332,6 +332,30 @@ func (s *AppServer) zhihuFetchPageHandler(c *gin.Context) {
 	respondSuccess(c, result, "抓取知乎页面成功")
 }
 
+// zhihuUserAnswersHandler 获取知乎用户回答列表
+func (s *AppServer) zhihuUserAnswersHandler(c *gin.Context) {
+	var req ZhihuUserAnswersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	result, err := s.zhihuService.FetchUserAnswers(c.Request.Context(), req.URL, limit)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "ZHIHU_USER_ANSWERS_FAILED",
+			"获取知乎用户回答列表失败", err.Error())
+		return
+	}
+
+	respondSuccess(c, result, "获取知乎用户回答列表成功")
+}
+
 // healthHandler 健康检查
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{

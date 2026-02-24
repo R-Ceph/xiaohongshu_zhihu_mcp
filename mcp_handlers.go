@@ -750,6 +750,44 @@ func (s *AppServer) handleZhihuFetchPage(ctx context.Context, url string) *MCPTo
 	}
 }
 
+// handleZhihuUserAnswers 处理获取知乎用户回答列表
+func (s *AppServer) handleZhihuUserAnswers(ctx context.Context, args ZhihuUserAnswersArgs) *MCPToolResult {
+	logrus.Infof("MCP: 获取知乎用户回答列表 - %s", args.URL)
+
+	if args.URL == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取失败: 缺少 url 参数"}},
+			IsError: true,
+		}
+	}
+
+	limit := args.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	result, err := s.zhihuService.FetchUserAnswers(ctx, args.URL, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取知乎用户回答列表失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	output := fmt.Sprintf("# %s 的知乎回答\n\n**主页**: %s\n**获取数量**: %d\n", result.UserName, result.UserURL, result.Total)
+	if result.SavedPath != "" {
+		output += fmt.Sprintf("**已保存到**: %s\n", result.SavedPath)
+	}
+	output += "\n---\n\n"
+	for i, ans := range result.Answers {
+		output += fmt.Sprintf("%d. [%s](%s)\n", i+1, ans.Title, ans.URL)
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: output}},
+	}
+}
+
 // handleReplyComment 处理回复评论
 func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 回复评论")

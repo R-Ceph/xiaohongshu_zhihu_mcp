@@ -93,6 +93,12 @@ type ZhihuFetchPageArgs struct {
 	URL string `json:"url" jsonschema:"知乎页面 URL，如 https://www.zhihu.com/question/xxx 或 https://zhuanlan.zhihu.com/p/xxx"`
 }
 
+// ZhihuUserAnswersArgs 知乎用户回答列表参数
+type ZhihuUserAnswersArgs struct {
+	URL   string `json:"url" jsonschema:"知乎用户主页链接，如 https://www.zhihu.com/people/xxx 或 https://www.zhihu.com/people/xxx/answers"`
+	Limit int    `json:"limit,omitempty" jsonschema:"最多获取的回答数量，默认100"`
+}
+
 // FavoriteFeedArgs 收藏参数
 type FavoriteFeedArgs struct {
 	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -504,7 +510,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 17)
+	// 工具 18: 获取知乎用户回答列表
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "zhihu_user_answers",
+			Description: "获取知乎博主的回答列表。传入用户主页链接，自动滚动加载获取回答链接，保存为 Markdown 文件。需要先登录知乎。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Fetch Zhihu User Answers",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("zhihu_user_answers", func(ctx context.Context, req *mcp.CallToolRequest, args ZhihuUserAnswersArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleZhihuUserAnswers(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 18)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

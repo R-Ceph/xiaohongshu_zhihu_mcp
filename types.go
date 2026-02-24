@@ -114,3 +114,9 @@ type ActionResult struct {
 type ZhihuFetchPageRequest struct {
 	URL string `json:"url" binding:"required"`
 }
+
+// ZhihuUserAnswersRequest 知乎用户回答列表请求
+type ZhihuUserAnswersRequest struct {
+	URL   string `json:"url" binding:"required"`
+	Limit int    `json:"limit,omitempty"`
+}

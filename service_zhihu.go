@@ -176,6 +176,40 @@ func (s *ZhihuService) FetchPage(ctx context.Context, url string) (*zhihu.PageCo
 	return result, nil
 }
 
+// FetchUserAnswers 抓取知乎用户的回答列表。
+//
+// Args:
+//
+//	ctx: 上下文
+//	userURL: 用户主页 URL
+//	limit: 最多获取的回答数量
+//
+// Returns:
+//
+//	*zhihu.UserAnswersResult: 回答列表
+//	error: 错误信息
+func (s *ZhihuService) FetchUserAnswers(ctx context.Context, userURL string, limit int) (*zhihu.UserAnswersResult, error) {
+	b := newZhihuBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := zhihu.NewFetchUserAnswersAction(page)
+	result, err := action.FetchUserAnswers(ctx, userURL, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	if savedPath, saveErr := result.SaveToFile("."); saveErr != nil {
+		logrus.Warnf("自动保存回答列表失败: %v", saveErr)
+	} else {
+		logrus.Infof("回答列表已保存: %s", savedPath)
+	}
+
+	return result, nil
+}
+
 func newZhihuBrowser() *headless_browser.Browser {
 	cookiePath := cookies.GetCookiesFilePathForPlatform("zhihu")
 	return browser.NewBrowser(

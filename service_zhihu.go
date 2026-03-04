@@ -160,13 +160,19 @@ func (s *ZhihuService) FetchPage(ctx context.Context, url string) (*zhihu.PageCo
 	page := b.NewPage()
 	defer page.Close()
 
+	// 抓取页面正文
 	action := zhihu.NewFetchPageAction(page)
 	result, err := action.FetchPage(ctx, url)
 	if err != nil {
 		return nil, err
 	}
 
-	// 自动保存到本地文件
+	// 复用同一页面抓取评论（最多100条，按点赞排序）
+	commentAction := zhihu.NewFetchCommentsAction(page)
+	comments := commentAction.FetchCommentsFromLoadedPage(ctx, 100)
+	result.Comments = comments
+
+	// 自动保存到本地文件（含评论）
 	if savedPath, saveErr := result.SaveToFile("."); saveErr != nil {
 		logrus.Warnf("自动保存文件失败: %v", saveErr)
 	} else {

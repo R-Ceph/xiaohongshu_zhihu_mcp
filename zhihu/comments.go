@@ -97,6 +97,39 @@ func (a *FetchCommentsAction) FetchComments(ctx context.Context, url string, lim
 	}, nil
 }
 
+// FetchCommentsFromLoadedPage 从已加载的页面直接抓取评论（跳过导航）。
+// 用于 FetchPage 之后复用同一页面实例提取评论。
+//
+// Args:
+//
+//	ctx: 上下文
+//	limit: 最多获取的评论数量
+//
+// Returns:
+//
+//	[]ZhihuComment: 评论列表（按点赞降序）
+func (a *FetchCommentsAction) FetchCommentsFromLoadedPage(ctx context.Context, limit int) []ZhihuComment {
+	pp := a.page.Context(ctx)
+
+	a.openCommentModal(pp)
+	time.Sleep(3 * time.Second)
+
+	a.scrollModalComments(pp, limit)
+
+	comments := a.extractModalComments(pp)
+
+	sort.Slice(comments, func(i, j int) bool {
+		return comments[i].Likes > comments[j].Likes
+	})
+
+	if len(comments) > limit {
+		comments = comments[:limit]
+	}
+
+	logrus.Infof("从已加载页面获取 %d 条评论", len(comments))
+	return comments
+}
+
 // openCommentModal 点击评论按钮打开评论弹窗。
 func (a *FetchCommentsAction) openCommentModal(pp *rod.Page) {
 	clicked := pp.MustEval(`() => {

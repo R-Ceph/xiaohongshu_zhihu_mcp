@@ -18,11 +18,12 @@ const defaultDownloadDir = "download_files"
 
 // PageContent 知乎页面抓取结果
 type PageContent struct {
-	URL       string `json:"url"`
-	Title     string `json:"title"`
-	Markdown  string `json:"markdown"`
-	HTML      string `json:"html"`
-	SavedPath string `json:"saved_path,omitempty"`
+	URL       string         `json:"url"`
+	Title     string         `json:"title"`
+	Markdown  string         `json:"markdown"`
+	HTML      string         `json:"html"`
+	Comments  []ZhihuComment `json:"comments,omitempty"`
+	SavedPath string         `json:"saved_path,omitempty"`
 }
 
 // FetchPageAction 知乎页面抓取操作
@@ -170,8 +171,26 @@ func (p *PageContent) SaveToFile(baseDir string) (string, error) {
 
 	filePath := filepath.Join(dirPath, fileName)
 
-	// 组装完整 Markdown：标题 + 来源 + 正文
+	// 组装完整 Markdown：标题 + 来源 + 正文 + 评论
 	fullContent := fmt.Sprintf("# %s\n\n**来源**: %s\n\n---\n\n%s\n", p.Title, p.URL, content)
+
+	if len(p.Comments) > 0 {
+		fullContent += fmt.Sprintf("\n---\n\n## 评论 (%d 条，按点赞排序)\n\n", len(p.Comments))
+		for i, c := range p.Comments {
+			author := c.Author
+			if author == "" {
+				author = "(匿名)"
+			}
+			fullContent += fmt.Sprintf("%d. **%s** (👍 %d", i+1, author, c.Likes)
+			if c.Time != "" {
+				fullContent += fmt.Sprintf(" · %s", c.Time)
+			}
+			if c.IPLocation != "" {
+				fullContent += fmt.Sprintf(" · %s", c.IPLocation)
+			}
+			fullContent += fmt.Sprintf(")\n   %s\n\n", c.Content)
+		}
+	}
 
 	if err := os.WriteFile(filePath, []byte(fullContent), 0644); err != nil {
 		return "", fmt.Errorf("写入文件失败: %w", err)

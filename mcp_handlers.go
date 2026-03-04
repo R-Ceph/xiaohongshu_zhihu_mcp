@@ -788,6 +788,48 @@ func (s *AppServer) handleZhihuUserAnswers(ctx context.Context, args ZhihuUserAn
 	}
 }
 
+// handleZhihuFetchComments 处理获取知乎回答评论
+func (s *AppServer) handleZhihuFetchComments(ctx context.Context, args ZhihuFetchCommentsArgs) *MCPToolResult {
+	logrus.Infof("MCP: 获取知乎评论 - %s", args.URL)
+
+	if args.URL == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取失败: 缺少 url 参数"}},
+			IsError: true,
+		}
+	}
+
+	limit := args.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	result, err := s.zhihuService.FetchAnswerComments(ctx, args.URL, limit)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取知乎评论失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	output := fmt.Sprintf("# 知乎评论\n\n**链接**: %s\n**获取数量**: %d\n\n---\n\n", result.URL, result.Total)
+	for i, c := range result.Comments {
+		likesStr := fmt.Sprintf("%d", c.Likes)
+		output += fmt.Sprintf("%d. **%s** (👍 %s", i+1, c.Author, likesStr)
+		if c.Time != "" {
+			output += fmt.Sprintf(" · %s", c.Time)
+		}
+		if c.IPLocation != "" {
+			output += fmt.Sprintf(" · %s", c.IPLocation)
+		}
+		output += fmt.Sprintf(")\n   %s\n\n", c.Content)
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: output}},
+	}
+}
+
 // handleReplyComment 处理回复评论
 func (s *AppServer) handleReplyComment(ctx context.Context, args map[string]interface{}) *MCPToolResult {
 	logrus.Info("MCP: 回复评论")

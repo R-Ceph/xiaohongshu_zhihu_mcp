@@ -59,6 +59,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.DELETE("/zhihu/login/cookies", appServer.zhihuDeleteCookiesHandler)
 		api.POST("/zhihu/page", appServer.zhihuFetchPageHandler)
 		api.POST("/zhihu/user/answers", appServer.zhihuUserAnswersHandler)
+		api.POST("/zhihu/comments", appServer.zhihuFetchCommentsHandler)
 	}
 
 	return router

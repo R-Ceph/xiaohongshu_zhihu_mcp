@@ -210,6 +210,29 @@ func (s *ZhihuService) FetchUserAnswers(ctx context.Context, userURL string, lim
 	return result, nil
 }
 
+// FetchAnswerComments 抓取知乎回答/文章的评论列表。
+//
+// Args:
+//
+//	ctx: 上下文
+//	url: 知乎回答或文章 URL
+//	limit: 最多获取的评论数量
+//
+// Returns:
+//
+//	*zhihu.AnswerCommentsResult: 评论列表
+//	error: 错误信息
+func (s *ZhihuService) FetchAnswerComments(ctx context.Context, url string, limit int) (*zhihu.AnswerCommentsResult, error) {
+	b := newZhihuBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := zhihu.NewFetchCommentsAction(page)
+	return action.FetchComments(ctx, url, limit)
+}
+
 func newZhihuBrowser() *headless_browser.Browser {
 	cookiePath := cookies.GetCookiesFilePathForPlatform("zhihu")
 	return browser.NewBrowser(

@@ -120,3 +120,9 @@ type ZhihuUserAnswersRequest struct {
 	URL   string `json:"url" binding:"required"`
 	Limit int    `json:"limit,omitempty"`
 }
+
+// ZhihuFetchCommentsRequest 知乎评论抓取请求
+type ZhihuFetchCommentsRequest struct {
+	URL   string `json:"url" binding:"required"`
+	Limit int    `json:"limit,omitempty"`
+}

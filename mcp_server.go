@@ -99,6 +99,12 @@ type ZhihuUserAnswersArgs struct {
 	Limit int    `json:"limit,omitempty" jsonschema:"最多获取的回答数量，默认100"`
 }
 
+// ZhihuFetchCommentsArgs 知乎评论抓取参数
+type ZhihuFetchCommentsArgs struct {
+	URL   string `json:"url" jsonschema:"知乎回答或文章链接，如 https://www.zhihu.com/question/xxx/answer/yyy"`
+	Limit int    `json:"limit,omitempty" jsonschema:"最多获取的评论数量，默认100，按点赞数降序排列"`
+}
+
 // FavoriteFeedArgs 收藏参数
 type FavoriteFeedArgs struct {
 	FeedID     string `json:"feed_id" jsonschema:"小红书笔记ID，从Feed列表获取"`
@@ -526,7 +532,23 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 18)
+	// 工具 19: 获取知乎评论
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "zhihu_fetch_comments",
+			Description: "获取知乎回答或文章的评论列表，按点赞数降序排列，最多100条。需要先登录知乎。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Fetch Zhihu Comments",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("zhihu_fetch_comments", func(ctx context.Context, req *mcp.CallToolRequest, args ZhihuFetchCommentsArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleZhihuFetchComments(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
+	logrus.Infof("Registered %d MCP tools", 19)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

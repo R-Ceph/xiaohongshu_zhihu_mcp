@@ -238,12 +238,9 @@ func formatSingleComment(idx int, c ZhihuComment, isReply bool) string {
 // 如果找不到第二个回答标记，则追加到正文末尾。
 func insertCommentsAfterFirstAnswer(content, commentBlock string) string {
 	// 查找 "## 回答 2" 的位置
-	markers := []string{"## 回答 2", "## 回答 2 "}
-	for _, marker := range markers {
-		idx := strings.Index(content, marker)
-		if idx > 0 {
-			return content[:idx] + commentBlock + "\n---\n\n" + content[idx:]
-		}
+	idx := strings.Index(content, "## 回答 2")
+	if idx > 0 {
+		return content[:idx] + commentBlock + "\n---\n\n" + content[idx:]
 	}
 	// 没有第二个回答，追加到末尾
 	return content + "\n" + commentBlock

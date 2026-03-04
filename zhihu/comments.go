@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -70,26 +69,7 @@ func (a *FetchCommentsAction) FetchComments(ctx context.Context, url string, lim
 	pp.MustNavigate(url).MustWaitDOMStable()
 	time.Sleep(3 * time.Second)
 
-	// 点击评论按钮展开评论弹窗
-	a.openCommentModal(pp)
-	time.Sleep(3 * time.Second)
-
-	// 滚动评论弹窗加载更多
-	a.scrollModalComments(pp, limit)
-
-	// 提取评论
-	comments := a.extractModalComments(pp)
-
-	// 按点赞数降序
-	sort.Slice(comments, func(i, j int) bool {
-		return comments[i].Likes > comments[j].Likes
-	})
-
-	if len(comments) > limit {
-		comments = comments[:limit]
-	}
-
-	logrus.Infof("共获取 %d 条评论", len(comments))
+	comments := a.FetchCommentsFromLoadedPage(ctx, limit)
 
 	return &AnswerCommentsResult{
 		URL:      url,
@@ -335,36 +315,4 @@ func (a *FetchCommentsAction) extractModalComments(pp *rod.Page) []ZhihuComment 
 	}
 
 	return comments
-}
-
-// parseLikeCount 解析点赞文本为数字。
-func parseLikeCount(text string) int {
-	text = strings.TrimSpace(text)
-	text = strings.TrimPrefix(text, "赞同 ")
-	text = strings.TrimPrefix(text, "赞同")
-	text = strings.TrimSpace(text)
-
-	if text == "" || text == "赞" {
-		return 0
-	}
-
-	text = strings.ToUpper(text)
-	if strings.HasSuffix(text, "K") {
-		numStr := strings.TrimSuffix(text, "K")
-		if f, err := strconv.ParseFloat(numStr, 64); err == nil {
-			return int(f * 1000)
-		}
-	}
-
-	n, _ := strconv.Atoi(text)
-	return n
-}
-
-// truncateStr 截取字符串前n个字符。
-func truncateStr(s string, n int) string {
-	runes := []rune(s)
-	if len(runes) <= n {
-		return s
-	}
-	return string(runes[:n])
 }

@@ -14,11 +14,12 @@ import (
 
 // ZhihuComment 知乎单条评论
 type ZhihuComment struct {
-	Author     string `json:"author"`
-	Content    string `json:"content"`
-	Likes      int    `json:"likes"`
-	Time       string `json:"time,omitempty"`
-	IPLocation string `json:"ip_location,omitempty"`
+	Author     string         `json:"author"`
+	Content    string         `json:"content"`
+	Likes      int            `json:"likes"`
+	Time       string         `json:"time,omitempty"`
+	IPLocation string         `json:"ip_location,omitempty"`
+	Replies    []ZhihuComment `json:"replies,omitempty"`
 }
 
 // AnswerCommentsResult 回答评论抓取结果
@@ -212,19 +213,31 @@ func (a *FetchCommentsAction) scrollModalComments(pp *rod.Page, limit int) {
 	}
 }
 
-// extractModalComments 从评论弹窗中提取所有评论。
+// extractModalComments 从评论弹窗中提取所有评论，保留根评论和子回复的嵌套关系。
 // 知乎评论弹窗DOM结构:
 //
 //	Modal-content → 列表容器 → 评论项(itemDiv: 头像区+正文区)
-//	正文区(bodyDiv): 用户名区(css-z0cc58) + CommentContent + 操作栏(时间·IP·回复·赞)
+//	正文区(bodyDiv): 用户名区 + CommentContent + 操作栏(时间·IP·回复·赞)
+//	根评论 depth=5, 子回复 depth=6 (离 Modal-content 的层级距离)
 func (a *FetchCommentsAction) extractModalComments(pp *rod.Page) []ZhihuComment {
 	result := pp.MustEval(`() => {
-		// 去除零宽字符
 		function clean(s) {
 			return (s || '').replace(/[\u200b\u200c\u200d\ufeff]/g, '').trim();
 		}
 
-		const comments = [];
+		// 计算元素到 Modal-content 的层级深度
+		function getDepth(el) {
+			let depth = 0;
+			while (el) {
+				const cls = (typeof el.className === 'string') ? el.className : '';
+				if (cls.includes('Modal-content')) break;
+				depth++;
+				el = el.parentElement;
+			}
+			return depth;
+		}
+
+		const rawList = [];
 		const seen = new Set();
 		const contentEls = document.querySelectorAll('.CommentContent');
 
@@ -232,13 +245,11 @@ func (a *FetchCommentsAction) extractModalComments(pp *rod.Page) []ZhihuComment 
 			const content = clean(contentEl.textContent);
 			if (!content || content.length < 1) continue;
 
-			// bodyDiv = CommentContent的父元素（正文区）
-			// itemDiv = bodyDiv的父元素（评论项）
 			const bodyDiv = contentEl.parentElement;
 			const itemDiv = bodyDiv ? bodyDiv.parentElement : null;
 			if (!itemDiv) continue;
 
-			// 提取用户名: itemDiv中第二个 a[href*="/people/"]（第一个是头像链接无文本）
+			// 用户名
 			let author = '';
 			const authorLinks = itemDiv.querySelectorAll('a[href*="/people/"]');
 			for (const link of authorLinks) {
@@ -246,23 +257,17 @@ func (a *FetchCommentsAction) extractModalComments(pp *rod.Page) []ZhihuComment 
 				if (text) { author = text; break; }
 			}
 
-			// 去重
 			const key = author + '|' + content.substring(0, 30);
 			if (seen.has(key)) continue;
 			seen.add(key);
 
-			// 提取点赞数: bodyDiv中的按钮，去零宽字符后解析数字
+			// 点赞数
 			let likes = 0;
 			const btns = bodyDiv.querySelectorAll('button');
 			for (const btn of btns) {
 				const btnText = clean(btn.textContent);
 				if (btnText === '回复' || btnText === '举报' || btnText === '收起') continue;
-				// 纯数字
-				if (/^\d+$/.test(btnText)) {
-					likes = parseInt(btnText);
-					break;
-				}
-				// "1.2K" 或 "1.2万"
+				if (/^\d+$/.test(btnText)) { likes = parseInt(btnText); break; }
 				const kMatch = btnText.match(/^(\d+\.?\d*)\s*([Kk万wW])$/);
 				if (kMatch) {
 					const unit = (kMatch[2] === '万' || kMatch[2] === 'w' || kMatch[2] === 'W') ? 10000 : 1000;
@@ -271,41 +276,62 @@ func (a *FetchCommentsAction) extractModalComments(pp *rod.Page) []ZhihuComment 
 				}
 			}
 
-			// 提取时间和IP: bodyDiv最后一个直接子div（操作栏）的文本
+			// 时间和IP
 			let timeStr = '';
 			let ipLocation = '';
 			const actionBar = bodyDiv.children[bodyDiv.children.length - 1];
 			if (actionBar) {
 				const barText = clean(actionBar.textContent);
-				// 格式: "02-26 · 上海​回复​11" 或 "2026-02-26 · 北京​回复​5"
 				const timeMatch = barText.match(/(\d{2,4}-\d{2}(?:-\d{2})?)/);
 				if (timeMatch) timeStr = timeMatch[1];
-				// 匹配省市名
 				const provinces = '北京|上海|广东|浙江|江苏|四川|湖北|湖南|山东|河南|河北|福建|安徽|重庆|天津|陕西|辽宁|吉林|黑龙江|广西|云南|贵州|山西|甘肃|海南|宁夏|青海|新疆|西藏|内蒙古|香港|澳门|台湾';
 				const ipMatch = barText.match(new RegExp('(' + provinces + ')'));
 				if (ipMatch) ipLocation = ipMatch[1];
 			}
 
-			comments.push({
+			// 层级深度: 根评论=5, 子回复=6
+			const depth = getDepth(itemDiv);
+
+			rawList.push({
 				author: author,
 				content: content,
 				likes: likes,
 				time: timeStr,
 				ip: ipLocation,
+				depth: depth,
 			});
 		}
-		return comments;
+		return rawList;
 	}`)
 
+	// 确定根评论的 depth（取最小值）
+	minDepth := 999
+	for _, item := range result.Arr() {
+		d := item.Get("depth").Int()
+		if d < minDepth {
+			minDepth = d
+		}
+	}
+
+	// 按 depth 分组：minDepth 为根评论，大于 minDepth 为子回复（挂到前一个根评论）
 	var comments []ZhihuComment
 	for _, item := range result.Arr() {
-		comments = append(comments, ZhihuComment{
+		c := ZhihuComment{
 			Author:     item.Get("author").String(),
 			Content:    item.Get("content").String(),
 			Likes:      item.Get("likes").Int(),
 			Time:       item.Get("time").String(),
 			IPLocation: item.Get("ip").String(),
-		})
+		}
+		depth := item.Get("depth").Int()
+
+		if depth <= minDepth {
+			// 根评论
+			comments = append(comments, c)
+		} else if len(comments) > 0 {
+			// 子回复，追加到最近的根评论
+			comments[len(comments)-1].Replies = append(comments[len(comments)-1].Replies, c)
+		}
 	}
 
 	return comments

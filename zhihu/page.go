@@ -171,26 +171,16 @@ func (p *PageContent) SaveToFile(baseDir string) (string, error) {
 
 	filePath := filepath.Join(dirPath, fileName)
 
-	// 组装完整 Markdown：标题 + 来源 + 正文 + 评论
-	fullContent := fmt.Sprintf("# %s\n\n**来源**: %s\n\n---\n\n%s\n", p.Title, p.URL, content)
+	// 组装完整 Markdown：标题 + 来源 + 正文（评论插入到第一个回答后面）
+	fullContent := fmt.Sprintf("# %s\n\n**来源**: %s\n\n---\n\n", p.Title, p.URL)
 
 	if len(p.Comments) > 0 {
-		fullContent += fmt.Sprintf("\n---\n\n## 评论 (%d 条，按点赞排序)\n\n", len(p.Comments))
-		for i, c := range p.Comments {
-			author := c.Author
-			if author == "" {
-				author = "(匿名)"
-			}
-			fullContent += fmt.Sprintf("%d. **%s** (👍 %d", i+1, author, c.Likes)
-			if c.Time != "" {
-				fullContent += fmt.Sprintf(" · %s", c.Time)
-			}
-			if c.IPLocation != "" {
-				fullContent += fmt.Sprintf(" · %s", c.IPLocation)
-			}
-			fullContent += fmt.Sprintf(")\n   %s\n\n", c.Content)
-		}
+		commentBlock := formatCommentsMarkdown(p.Comments)
+		fullContent += insertCommentsAfterFirstAnswer(content, commentBlock)
+	} else {
+		fullContent += content
 	}
+	fullContent += "\n"
 
 	if err := os.WriteFile(filePath, []byte(fullContent), 0644); err != nil {
 		return "", fmt.Errorf("写入文件失败: %w", err)
@@ -199,6 +189,64 @@ func (p *PageContent) SaveToFile(baseDir string) (string, error) {
 	logrus.Infof("Markdown 已保存到: %s", filePath)
 	p.SavedPath = filePath
 	return filePath, nil
+}
+
+// formatCommentsMarkdown 将评论列表格式化为 Markdown，包含回复嵌套关系。
+func formatCommentsMarkdown(comments []ZhihuComment) string {
+	totalCount := 0
+	for _, c := range comments {
+		totalCount += 1 + len(c.Replies)
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("\n### 💬 评论区 (%d 条，按点赞排序)\n\n", totalCount))
+
+	for i, c := range comments {
+		sb.WriteString(formatSingleComment(i+1, c, false))
+
+		for _, r := range c.Replies {
+			sb.WriteString(formatSingleComment(0, r, true))
+		}
+	}
+
+	return sb.String()
+}
+
+// formatSingleComment 格式化单条评论。isReply=true 时用引用格式表示子回复。
+func formatSingleComment(idx int, c ZhihuComment, isReply bool) string {
+	author := c.Author
+	if author == "" {
+		author = "(匿名)"
+	}
+
+	meta := fmt.Sprintf("**%s** (👍 %d", author, c.Likes)
+	if c.Time != "" {
+		meta += fmt.Sprintf(" · %s", c.Time)
+	}
+	if c.IPLocation != "" {
+		meta += fmt.Sprintf(" · %s", c.IPLocation)
+	}
+	meta += ")"
+
+	if isReply {
+		return fmt.Sprintf("   > ↳ %s\n   > %s\n\n", meta, c.Content)
+	}
+	return fmt.Sprintf("%d. %s\n   %s\n\n", idx, meta, c.Content)
+}
+
+// insertCommentsAfterFirstAnswer 将评论块插入到第一个回答后面（"## 回答 2"之前）。
+// 如果找不到第二个回答标记，则追加到正文末尾。
+func insertCommentsAfterFirstAnswer(content, commentBlock string) string {
+	// 查找 "## 回答 2" 的位置
+	markers := []string{"## 回答 2", "## 回答 2 "}
+	for _, marker := range markers {
+		idx := strings.Index(content, marker)
+		if idx > 0 {
+			return content[:idx] + commentBlock + "\n---\n\n" + content[idx:]
+		}
+	}
+	// 没有第二个回答，追加到末尾
+	return content + "\n" + commentBlock
 }
 
 // extractQuestionPage 提取知乎问答页面（问题 + 多个回答）。

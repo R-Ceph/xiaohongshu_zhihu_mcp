@@ -111,7 +111,7 @@ func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
 	server := mcp.NewServer(
 		&mcp.Implementation{
-			Name:    "xiaohongshu-mcp",
+			Name:    "xiaohongshu_zhihu_mcp",
 			Version: "2.0.0",
 		},
 		nil,

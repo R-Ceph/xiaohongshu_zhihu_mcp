@@ -1,5 +1,5 @@
 package configs
 
 const (
-	Username = "xiaohongshu-mcp"
+	Username = "xiaohongshu_zhihu_mcp"
 )

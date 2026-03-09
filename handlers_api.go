@@ -360,7 +360,7 @@ func (s *AppServer) zhihuUserAnswersHandler(c *gin.Context) {
 func healthHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{
 		"status":    "healthy",
-		"service":   "xiaohongshu-mcp",
+		"service":   "xiaohongshu_zhihu_mcp",
 		"account":   "ai-report",
 		"timestamp": "now",
 	}, "服务正常")

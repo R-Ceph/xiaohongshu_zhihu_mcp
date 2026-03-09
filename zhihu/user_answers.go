@@ -23,8 +23,10 @@ type dataZop struct {
 
 // AnswerLink 单条回答信息
 type AnswerLink struct {
-	Title string `json:"title"`
-	URL   string `json:"url"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	CreatedTime string `json:"created_time,omitempty"` // 发布/编辑时间
+	VoteCount   string `json:"vote_count,omitempty"`   // 赞同数
 }
 
 // UserAnswersResult 用户回答列表抓取结果
@@ -165,9 +167,16 @@ func (a *FetchUserAnswersAction) extractAnswersFromPage(pp *rod.Page, seen map[s
 			continue
 		}
 		seen[link] = true
+
+		// 提取赞同数和时间
+		voteCount := a.extractItemVoteCount(item)
+		createdTime := a.extractItemTime(item)
+
 		newItems = append(newItems, AnswerLink{
-			Title: title,
-			URL:   link,
+			Title:       title,
+			URL:         link,
+			CreatedTime: createdTime,
+			VoteCount:   voteCount,
 		})
 	}
 
@@ -280,6 +289,79 @@ func (a *FetchUserAnswersAction) extractTitle(item *rod.Element) string {
 	return ""
 }
 
+// extractItemVoteCount 从用户回答列表的单个卡片中提取赞同数。
+func (a *FetchUserAnswersAction) extractItemVoteCount(item *rod.Element) string {
+	// 方式1: 从 VoteButton 获取
+	if el, err := item.Element(`.VoteButton--up`); err == nil {
+		if text, err := el.Text(); err == nil {
+			text = strings.TrimSpace(text)
+			text = strings.ReplaceAll(text, "赞同 ", "")
+			text = strings.ReplaceAll(text, "赞同", "")
+			if text != "" {
+				return text
+			}
+		}
+	}
+
+	// 方式2: 从 aria-label 获取
+	if el, err := item.Element(`button[aria-label*="赞同"]`); err == nil {
+		if label, err := el.Attribute("aria-label"); err == nil && label != nil {
+			text := strings.ReplaceAll(*label, "赞同 ", "")
+			text = strings.ReplaceAll(text, "赞同", "")
+			text = strings.TrimSpace(text)
+			if text != "" {
+				return text
+			}
+		}
+	}
+
+	// 方式3: 从 ContentItem-actions 中的赞同按钮获取
+	if el, err := item.Element(`.ContentItem-actions button:first-child`); err == nil {
+		if text, err := el.Text(); err == nil {
+			text = strings.TrimSpace(text)
+			if strings.Contains(text, "赞同") {
+				text = strings.ReplaceAll(text, "赞同 ", "")
+				text = strings.ReplaceAll(text, "赞同", "")
+				text = strings.TrimSpace(text)
+				if text != "" {
+					return text
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// extractItemTime 从用户回答列表的单个卡片中提取发布时间。
+func (a *FetchUserAnswersAction) extractItemTime(item *rod.Element) string {
+	// 方式1: 从 ContentItem-time 获取
+	if el, err := item.Element(`.ContentItem-time`); err == nil {
+		if text, err := el.Text(); err == nil && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+
+	// 方式2: 从 time 标签获取
+	if el, err := item.Element(`time`); err == nil {
+		if dt, err := el.Attribute("datetime"); err == nil && dt != nil {
+			return *dt
+		}
+		if text, err := el.Text(); err == nil && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+
+	// 方式3: 从 meta[itemprop="dateCreated"] 获取
+	if el, err := item.Element(`meta[itemprop="dateCreated"]`); err == nil {
+		if content, err := el.Attribute("content"); err == nil && content != nil {
+			return *content
+		}
+	}
+
+	return ""
+}
+
 // cleanText 去除文本中的零宽字符、多余换行和空白。
 func cleanText(s string) string {
 	s = strings.ReplaceAll(s, "\u200b", "")
@@ -342,7 +424,14 @@ func (r *UserAnswersResult) SaveToFile(baseDir string) (string, error) {
 	sb.WriteString("---\n\n")
 
 	for i, ans := range r.Answers {
-		sb.WriteString(fmt.Sprintf("%d. [%s](%s)\n", i+1, ans.Title, ans.URL))
+		entry := fmt.Sprintf("%d. [%s](%s)", i+1, ans.Title, ans.URL)
+		if ans.VoteCount != "" {
+			entry += fmt.Sprintf(" | 赞同: %s", ans.VoteCount)
+		}
+		if ans.CreatedTime != "" {
+			entry += fmt.Sprintf(" | 时间: %s", ans.CreatedTime)
+		}
+		sb.WriteString(entry + "\n")
 	}
 
 	if err := os.WriteFile(filePath, []byte(sb.String()), 0644); err != nil {

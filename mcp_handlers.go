@@ -780,7 +780,14 @@ func (s *AppServer) handleZhihuUserAnswers(ctx context.Context, args ZhihuUserAn
 	}
 	output += "\n---\n\n"
 	for i, ans := range result.Answers {
-		output += fmt.Sprintf("%d. [%s](%s)\n", i+1, ans.Title, ans.URL)
+		entry := fmt.Sprintf("%d. [%s](%s)", i+1, ans.Title, ans.URL)
+		if ans.VoteCount != "" {
+			entry += fmt.Sprintf(" | 赞同: %s", ans.VoteCount)
+		}
+		if ans.CreatedTime != "" {
+			entry += fmt.Sprintf(" | 时间: %s", ans.CreatedTime)
+		}
+		output += entry + "\n"
 	}
 
 	return &MCPToolResult{

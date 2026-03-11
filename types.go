@@ -65,6 +65,14 @@ type FeedDetailResponse struct {
 	Data   any    `json:"data"`
 }
 
+// FetchNoteByURLRequest 通过URL获取笔记详情请求
+type FetchNoteByURLRequest struct {
+	URL             string `json:"url" binding:"required"`
+	LoadAllComments *bool  `json:"load_all_comments,omitempty"` // 默认true
+	MaxCommentItems int    `json:"max_comment_items,omitempty"` // 默认20
+	SortByLikes     *bool  `json:"sort_by_likes,omitempty"`     // 默认true
+}
+
 // PostCommentRequest 发表评论请求
 type PostCommentRequest struct {
 	FeedID    string `json:"feed_id" binding:"required"`

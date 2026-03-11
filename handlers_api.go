@@ -270,6 +270,50 @@ func (s *AppServer) replyCommentHandler(c *gin.Context) {
 	respondSuccess(c, result, result.Message)
 }
 
+// fetchNoteByURLHandler 通过URL获取笔记详情
+func (s *AppServer) fetchNoteByURLHandler(c *gin.Context) {
+	var req FetchNoteByURLRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST",
+			"请求参数错误", err.Error())
+		return
+	}
+
+	// 默认值
+	loadAll := true
+	if req.LoadAllComments != nil {
+		loadAll = *req.LoadAllComments
+	}
+	maxComments := 20
+	if req.MaxCommentItems > 0 {
+		maxComments = req.MaxCommentItems
+	}
+	sortByLikes := true
+	if req.SortByLikes != nil {
+		sortByLikes = *req.SortByLikes
+	}
+
+	config := xiaohongshu.DefaultCommentLoadConfig()
+	config.MaxCommentItems = maxComments
+
+	result, err := s.xiaohongshuService.FetchNoteByURL(c.Request.Context(), req.URL, loadAll, config)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "FETCH_NOTE_BY_URL_FAILED",
+			"通过URL获取笔记失败", err.Error())
+		return
+	}
+
+	// 对评论按点赞数排序
+	if sortByLikes && result.Data != nil {
+		if resp, ok := result.Data.(*xiaohongshu.FeedDetailResponse); ok && len(resp.Comments.List) > 0 {
+			resp.Comments.List = xiaohongshu.SortCommentsByLikes(resp.Comments.List, maxComments)
+		}
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, result, "获取笔记详情成功")
+}
+
 // --- 知乎 HTTP API handlers ---
 
 // zhihuCheckLoginStatusHandler 检查知乎登录状态

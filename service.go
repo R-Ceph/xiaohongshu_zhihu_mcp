@@ -411,6 +411,30 @@ func (s *XiaohongshuService) GetFeedDetailWithConfig(ctx context.Context, feedID
 	return response, nil
 }
 
+// FetchNoteByURL 通过URL直接获取笔记详情。
+// 支持完整链接、短链接（xhslink.com）、分享链接等。
+func (s *XiaohongshuService) FetchNoteByURL(ctx context.Context, noteURL string, loadAllComments bool, config xiaohongshu.CommentLoadConfig) (*FeedDetailResponse, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewFeedDetailAction(page)
+
+	result, err := action.GetFeedDetailByURL(ctx, noteURL, loadAllComments, config)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FeedDetailResponse{
+		FeedID: result.Note.NoteID,
+		Data:   result,
+	}
+
+	return response, nil
+}
+
 // UserProfile 获取用户信息
 func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string) (*UserProfileResponse, error) {
 	b := newBrowser()

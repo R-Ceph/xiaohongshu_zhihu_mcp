@@ -865,3 +865,289 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 func makeFeedDetailURL(feedID, xsecToken string) string {
 	return fmt.Sprintf("https://www.xiaohongshu.com/explore/%s?xsec_token=%s&xsec_source=pc_feed", feedID, xsecToken)
 }
+
+// noteIDFromURL 从各种XHS链接格式中提取笔记ID。
+// 支持的格式：
+//   - https://www.xiaohongshu.com/explore/{noteID}?...
+//   - https://www.xiaohongshu.com/discovery/item/{noteID}?...
+var reNoteID = regexp.MustCompile(`(?:explore|discovery/item)/([0-9a-f]{24})`)
+
+func extractNoteIDFromURL(u string) string {
+	matches := reNoteID.FindStringSubmatch(u)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
+}
+
+// isNoteDetailPage 判断URL是否为笔记详情页（而非首页/探索页）。
+func isNoteDetailPage(u string) bool {
+	return reNoteID.MatchString(u)
+}
+
+// navigateToNoteURL 导航到noteURL并等待页面稳定，返回最终URL。
+func navigateToNoteURL(page *rod.Page, noteURL string) (string, error) {
+	err := retry.Do(
+		func() error {
+			page.MustNavigate(noteURL)
+			page.MustWaitDOMStable()
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(500*time.Millisecond),
+		retry.MaxJitter(1000*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("页面导航重试 #%d: %v", n, err)
+		}),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	// 等待页面完全加载，处理短链接重定向
+	sleepRandom(2000, 2000)
+	page.MustWaitDOMStable()
+	sleepRandom(1000, 1000)
+
+	finalURL := page.MustEval(`() => window.location.href`).String()
+	logrus.Infof("最终页面URL: %s", finalURL)
+	return finalURL, nil
+}
+
+// GetFeedDetailByURL 通过URL直接打开笔记页面并提取详情。
+// 支持完整链接、短链接（xhslink.com，浏览器会自动跳转）、分享链接等。
+// 当URL缺少xsec_token导致被重定向到首页时，自动从原始URL提取笔记ID并重试。
+func (f *FeedDetailAction) GetFeedDetailByURL(ctx context.Context, noteURL string, loadAllComments bool, config CommentLoadConfig) (*FeedDetailResponse, error) {
+	page := f.page.Context(ctx).Timeout(10 * time.Minute)
+
+	logrus.Infof("通过URL打开笔记页面: %s", noteURL)
+	logrus.Infof("配置: 加载评论=%v, 点击更多=%v, 最大评论数=%d, 滚动速度=%s",
+		loadAllComments, config.ClickMoreReplies, config.MaxCommentItems, config.ScrollSpeed)
+
+	// 直接导航到用户提供的URL（短链接会自动被浏览器跳转）
+	finalURL, err := navigateToNoteURL(page, noteURL)
+	if err != nil {
+		logrus.Errorf("页面导航失败: %v", err)
+		return nil, err
+	}
+
+	// 检查是否成功落在笔记详情页
+	// XHS在缺少xsec_token时会将 /explore/{id} 重定向到 /explore（首页）
+	if !isNoteDetailPage(finalURL) {
+		logrus.Warnf("未落在笔记详情页（当前URL: %s），尝试从原始URL提取笔记ID重试", finalURL)
+
+		// 先尝试从最终URL提取（短链接跳转后可能包含note ID）
+		noteID := extractNoteIDFromURL(finalURL)
+		if noteID == "" {
+			// 再从原始URL提取
+			noteID = extractNoteIDFromURL(noteURL)
+		}
+
+		if noteID == "" {
+			return nil, fmt.Errorf("无法从URL提取笔记ID，请提供完整的笔记链接（包含 explore/{noteID} 格式）。原始URL: %s, 最终URL: %s", noteURL, finalURL)
+		}
+
+		logrus.Infof("提取到笔记ID: %s，尝试通过搜索获取xsec_token", noteID)
+
+		// XHS要求URL中必须有xsec_token，通过搜索noteID来获取
+		xsecToken, err := searchXsecToken(ctx, page, noteID)
+		if err != nil {
+			logrus.Warnf("搜索xsec_token失败: %v，尝试用空token访问", err)
+			xsecToken = ""
+		}
+
+		retryURL := makeFeedDetailURL(noteID, xsecToken)
+		logrus.Infof("重试URL（xsec_token=%q）: %s", xsecToken, retryURL)
+
+		finalURL, err = navigateToNoteURL(page, retryURL)
+		if err != nil {
+			return nil, fmt.Errorf("重试导航失败: %w", err)
+		}
+
+		if !isNoteDetailPage(finalURL) {
+			return nil, fmt.Errorf("重试后仍未落在笔记详情页（URL: %s），xsec_token=%q。可能需要重新登录或笔记已删除", finalURL, xsecToken)
+		}
+	}
+
+	if err := checkPageAccessible(page); err != nil {
+		return nil, err
+	}
+
+	if loadAllComments {
+		if err := f.loadAllCommentsWithConfig(page, config); err != nil {
+			logrus.Warnf("加载全部评论失败: %v", err)
+		}
+	}
+
+	return f.extractFeedDetailFromPage(page)
+}
+
+// extractFeedDetailFromPage 从当前页面提取笔记详情，不依赖预知的feedID。
+// 直接取 noteDetailMap 中的第一个条目。
+func (f *FeedDetailAction) extractFeedDetailFromPage(page *rod.Page) (*FeedDetailResponse, error) {
+	var result string
+
+	err := retry.Do(
+		func() error {
+			evalResult := page.MustEval(`() => {
+				if (window.__INITIAL_STATE__ &&
+					window.__INITIAL_STATE__.note &&
+					window.__INITIAL_STATE__.note.noteDetailMap) {
+					const noteDetailMap = window.__INITIAL_STATE__.note.noteDetailMap;
+					return JSON.stringify(noteDetailMap);
+				}
+				return "";
+			}`).String()
+
+			if evalResult != "" {
+				result = evalResult
+				return nil
+			}
+			return fmt.Errorf("无法获取初始状态数据")
+		},
+		retry.Attempts(5),
+		retry.Delay(500*time.Millisecond),
+		retry.MaxJitter(500*time.Millisecond),
+		retry.OnRetry(func(n uint, err error) {
+			logrus.Debugf("提取Feed详情重试 #%d: %v", n, err)
+		}),
+	)
+
+	if err != nil {
+		logrus.Errorf("提取Feed详情失败: %v", err)
+		return nil, fmt.Errorf("提取Feed详情失败: %w", err)
+	}
+
+	if result == "" {
+		return nil, errors.ErrNoFeedDetail
+	}
+
+	var noteDetailMap map[string]struct {
+		Note     FeedDetail  `json:"note"`
+		Comments CommentList `json:"comments"`
+	}
+
+	if err := json.Unmarshal([]byte(result), &noteDetailMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal noteDetailMap: %w", err)
+	}
+
+	// 取第一个条目（页面只会展示一个笔记）
+	for _, noteDetail := range noteDetailMap {
+		return &FeedDetailResponse{
+			Note:     noteDetail.Note,
+			Comments: noteDetail.Comments,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("noteDetailMap 为空，未找到笔记数据")
+}
+
+// ParseLikeCount 将赞同数字符串解析为整数，支持 "1.2万"、"523" 等格式。
+func ParseLikeCount(s string) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+
+	// 处理 "万" 单位
+	if strings.Contains(s, "万") {
+		s = strings.ReplaceAll(s, "万", "")
+		s = strings.TrimSpace(s)
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0
+		}
+		return int(f * 10000)
+	}
+
+	// 处理逗号分隔
+	s = strings.ReplaceAll(s, ",", "")
+
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// searchXsecToken 通过搜索noteID来获取对应笔记的xsec_token。
+// XHS要求笔记URL中必须携带有效的xsec_token才能访问，此函数通过搜索来获取。
+func searchXsecToken(ctx context.Context, page *rod.Page, noteID string) (string, error) {
+	logrus.Infof("通过搜索获取笔记 %s 的xsec_token...", noteID)
+
+	searchURL := fmt.Sprintf("https://www.xiaohongshu.com/search_result?keyword=%s&source=web_explore_feed", noteID)
+
+	err := retry.Do(
+		func() error {
+			page.MustNavigate(searchURL)
+			page.MustWaitDOMStable()
+			return nil
+		},
+		retry.Attempts(3),
+		retry.Delay(500*time.Millisecond),
+		retry.MaxJitter(1000*time.Millisecond),
+	)
+	if err != nil {
+		return "", fmt.Errorf("搜索页面导航失败: %w", err)
+	}
+
+	sleepRandom(2000, 2000)
+	page.MustWaitDOMStable()
+
+	// 使用与 SearchAction.Search 相同的JS提取逻辑
+	result := page.MustEval(`() => {
+		if (window.__INITIAL_STATE__ &&
+		    window.__INITIAL_STATE__.search &&
+		    window.__INITIAL_STATE__.search.feeds) {
+			const feeds = window.__INITIAL_STATE__.search.feeds;
+			const feedsData = feeds.value !== undefined ? feeds.value : feeds._value;
+			if (feedsData) {
+				return JSON.stringify(feedsData);
+			}
+		}
+		return "";
+	}`).String()
+
+	if result == "" {
+		return "", fmt.Errorf("搜索结果为空")
+	}
+
+	var items []Feed
+	if err := json.Unmarshal([]byte(result), &items); err != nil {
+		return "", fmt.Errorf("解析搜索结果失败: %w", err)
+	}
+
+	for _, item := range items {
+		// Feed.ID 即为笔记ID
+		if item.ID == noteID && item.XsecToken != "" {
+			logrus.Infof("找到笔记 %s 的xsec_token: %s", noteID, item.XsecToken)
+			return item.XsecToken, nil
+		}
+	}
+
+	return "", fmt.Errorf("搜索结果中未找到noteID=%s的笔记（共%d条结果）", noteID, len(items))
+}
+
+// SortCommentsByLikes 按点赞数降序排序评论，返回前 topN 条。
+func SortCommentsByLikes(comments []Comment, topN int) []Comment {
+	if len(comments) == 0 {
+		return comments
+	}
+
+	// 冒泡排序（评论数量通常不大）
+	sorted := make([]Comment, len(comments))
+	copy(sorted, comments)
+
+	for i := 0; i < len(sorted); i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if ParseLikeCount(sorted[j].LikeCount) > ParseLikeCount(sorted[i].LikeCount) {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+
+	if topN > 0 && topN < len(sorted) {
+		return sorted[:topN]
+	}
+	return sorted
+}

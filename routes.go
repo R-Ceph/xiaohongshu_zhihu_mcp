@@ -52,6 +52,7 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 		api.POST("/feeds/comment", appServer.postCommentHandler)
 		api.POST("/feeds/comment/reply", appServer.replyCommentHandler)
 		api.GET("/user/me", appServer.myProfileHandler)
+		api.POST("/feeds/fetch_by_url", appServer.fetchNoteByURLHandler)
 
 		// 知乎
 		api.GET("/zhihu/login/status", appServer.zhihuCheckLoginStatusHandler)

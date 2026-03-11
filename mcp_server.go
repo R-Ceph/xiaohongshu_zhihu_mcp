@@ -59,6 +59,14 @@ type FeedDetailArgs struct {
 	ScrollSpeed      string `json:"scroll_speed,omitempty" jsonschema:"【仅当load_all_comments为true时生效】滚动速度slow慢速、normal正常、fast快速"`
 }
 
+// FetchNoteByURLArgs 通过URL获取笔记详情的参数
+type FetchNoteByURLArgs struct {
+	URL             string `json:"url" jsonschema:"小红书笔记链接，支持完整链接、短链接(xhslink.com)、分享链接等"`
+	LoadAllComments bool   `json:"load_all_comments,omitempty" jsonschema:"是否加载更多评论，默认true"`
+	MaxCommentItems int    `json:"max_comment_items,omitempty" jsonschema:"最多加载的评论数量，默认20"`
+	SortByLikes     bool   `json:"sort_by_likes,omitempty" jsonschema:"是否按点赞数降序排序评论，默认true"`
+}
+
 // UserProfileArgs 获取用户主页的参数
 type UserProfileArgs struct {
 	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
@@ -444,9 +452,40 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
+	// 工具 14: 通过URL获取笔记详情
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "fetch_note_by_url",
+			Description: "通过小红书链接直接获取笔记详情，包括笔记文字、图片、互动数据（点赞/收藏/评论数）和评论列表。支持完整链接、短链接(xhslink.com)、分享链接等。默认加载评论并按点赞数排序返回前20条。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Fetch Note By URL",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("fetch_note_by_url", func(ctx context.Context, req *mcp.CallToolRequest, args FetchNoteByURLArgs) (*mcp.CallToolResult, any, error) {
+			// 默认20条评论
+			maxComments := args.MaxCommentItems
+			if maxComments <= 0 {
+				maxComments = 20
+			}
+
+			// LoadAllComments 和 SortByLikes 的默认值通过 JSON schema 描述告知 MCP 客户端
+			// 这里直接使用解析后的值
+			argsMap := map[string]interface{}{
+				"url":               args.URL,
+				"load_all_comments": args.LoadAllComments,
+				"sort_by_likes":     args.SortByLikes,
+				"max_comment_items": maxComments,
+			}
+
+			result := appServer.handleFetchNoteByURL(ctx, argsMap)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
 	// --- 知乎工具 ---
 
-	// 工具 14: 检查知乎登录状态
+	// 工具 15: 检查知乎登录状态
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "zhihu_check_login_status",
@@ -462,7 +501,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 15: 获取知乎登录二维码
+	// 工具 16: 获取知乎登录二维码
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "zhihu_get_login_qrcode",
@@ -478,7 +517,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 16: 删除知乎 cookies
+	// 工具 17: 删除知乎 cookies
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "zhihu_delete_cookies",
@@ -494,7 +533,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 17: 抓取知乎页面内容
+	// 工具 18: 抓取知乎页面内容
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "zhihu_fetch_page",
@@ -510,7 +549,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	// 工具 18: 获取知乎用户回答列表
+	// 工具 19: 获取知乎用户回答列表
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "zhihu_user_answers",
@@ -526,7 +565,7 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
-	logrus.Infof("Registered %d MCP tools", 18)
+	logrus.Infof("Registered %d MCP tools", 19)
 }
 
 // convertToMCPResult 将自定义的 MCPToolResult 转换为官方 SDK 的格式

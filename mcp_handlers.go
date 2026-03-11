@@ -631,6 +631,110 @@ func (s *AppServer) handlePostComment(ctx context.Context, args map[string]inter
 	}
 }
 
+// handleFetchNoteByURL 处理通过URL获取笔记详情
+func (s *AppServer) handleFetchNoteByURL(ctx context.Context, args map[string]any) *MCPToolResult {
+	logrus.Info("MCP: 通过URL获取笔记详情")
+
+	// 解析URL参数
+	noteURL, ok := args["url"].(string)
+	if !ok || noteURL == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取笔记失败: 缺少url参数",
+			}},
+			IsError: true,
+		}
+	}
+
+	// 解析是否加载评论
+	loadAll := true
+	if raw, ok := args["load_all_comments"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			loadAll = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				loadAll = parsed
+			}
+		case float64:
+			loadAll = v != 0
+		}
+	}
+
+	// 解析评论数量限制
+	maxComments := 20
+	if raw, ok := args["max_comment_items"]; ok {
+		switch v := raw.(type) {
+		case float64:
+			maxComments = int(v)
+		case int:
+			maxComments = v
+		case string:
+			if parsed, err := strconv.Atoi(v); err == nil {
+				maxComments = parsed
+			}
+		}
+	}
+
+	// 解析是否按点赞排序
+	sortByLikes := true
+	if raw, ok := args["sort_by_likes"]; ok {
+		switch v := raw.(type) {
+		case bool:
+			sortByLikes = v
+		case string:
+			if parsed, err := strconv.ParseBool(v); err == nil {
+				sortByLikes = parsed
+			}
+		case float64:
+			sortByLikes = v != 0
+		}
+	}
+
+	config := xiaohongshu.DefaultCommentLoadConfig()
+	config.MaxCommentItems = maxComments
+
+	logrus.Infof("MCP: 通过URL获取笔记 - URL: %s, loadAll=%v, maxComments=%d, sortByLikes=%v",
+		noteURL, loadAll, maxComments, sortByLikes)
+
+	result, err := s.xiaohongshuService.FetchNoteByURL(ctx, noteURL, loadAll, config)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: "获取笔记失败: " + err.Error(),
+			}},
+			IsError: true,
+		}
+	}
+
+	// 对评论按点赞数排序
+	if sortByLikes && result.Data != nil {
+		if resp, ok := result.Data.(*xiaohongshu.FeedDetailResponse); ok && len(resp.Comments.List) > 0 {
+			resp.Comments.List = xiaohongshu.SortCommentsByLikes(resp.Comments.List, maxComments)
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{
+				Type: "text",
+				Text: fmt.Sprintf("获取笔记成功，但序列化失败: %v", err),
+			}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{
+			Type: "text",
+			Text: string(jsonData),
+		}},
+	}
+}
+
 // --- 知乎 MCP handlers ---
 
 // handleZhihuCheckLoginStatus 处理检查知乎登录状态

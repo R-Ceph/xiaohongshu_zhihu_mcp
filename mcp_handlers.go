@@ -464,9 +464,15 @@ func (s *AppServer) handleUserProfile(ctx context.Context, args map[string]any) 
 		}
 	}
 
-	logrus.Infof("MCP: 获取用户主页 - User ID: %s", userID)
+	// 解析 max_scroll_count（默认1，最大20）
+	maxScrollCount := 1
+	if val, ok := args["max_scroll_count"].(float64); ok && val > 0 {
+		maxScrollCount = int(val)
+	}
 
-	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken)
+	logrus.Infof("MCP: 获取用户主页 - User ID: %s, maxScrollCount: %d", userID, maxScrollCount)
+
+	result, err := s.xiaohongshuService.UserProfile(ctx, userID, xsecToken, maxScrollCount)
 	if err != nil {
 		return &MCPToolResult{
 			Content: []MCPContent{{

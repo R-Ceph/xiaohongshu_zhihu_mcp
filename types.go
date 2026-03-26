@@ -107,8 +107,9 @@ type ReplyCommentResponse struct {
 
 // UserProfileRequest 用户主页请求
 type UserProfileRequest struct {
-	UserID    string `json:"user_id" binding:"required"`
-	XsecToken string `json:"xsec_token" binding:"required"`
+	UserID         string `json:"user_id" binding:"required"`
+	XsecToken      string `json:"xsec_token" binding:"required"`
+	MaxScrollCount int    `json:"max_scroll_count,omitempty"` // 最大滚动次数，1-20，默认1（不额外滚动）
 }
 
 // ActionResult 通用动作响应（点赞/收藏等）

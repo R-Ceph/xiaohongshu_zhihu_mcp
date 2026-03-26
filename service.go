@@ -436,7 +436,7 @@ func (s *XiaohongshuService) FetchNoteByURL(ctx context.Context, noteURL string,
 }
 
 // UserProfile 获取用户信息
-func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string) (*UserProfileResponse, error) {
+func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken string, maxScrollCount int) (*UserProfileResponse, error) {
 	b := newBrowser()
 	defer b.Close()
 
@@ -445,7 +445,7 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 	action := xiaohongshu.NewUserProfileAction(page)
 
-	result, err := action.UserProfile(ctx, userID, xsecToken)
+	result, err := action.UserProfile(ctx, userID, xsecToken, maxScrollCount)
 	if err != nil {
 		return nil, err
 	}

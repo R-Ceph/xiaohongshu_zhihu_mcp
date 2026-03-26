@@ -69,8 +69,9 @@ type FetchNoteByURLArgs struct {
 
 // UserProfileArgs 获取用户主页的参数
 type UserProfileArgs struct {
-	UserID    string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
-	XsecToken string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	UserID         string `json:"user_id" jsonschema:"小红书用户ID，从Feed列表获取"`
+	XsecToken      string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表的xsecToken字段获取"`
+	MaxScrollCount int    `json:"max_scroll_count,omitempty" jsonschema:"最大滚动次数（1-500），默认1不额外滚动，设置更大的值可获取更多笔记"`
 }
 
 // PostCommentArgs 发表评论的参数
@@ -328,8 +329,9 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		},
 		withPanicRecovery("user_profile", func(ctx context.Context, req *mcp.CallToolRequest, args UserProfileArgs) (*mcp.CallToolResult, any, error) {
 			argsMap := map[string]interface{}{
-				"user_id":    args.UserID,
-				"xsec_token": args.XsecToken,
+				"user_id":          args.UserID,
+				"xsec_token":       args.XsecToken,
+				"max_scroll_count": float64(args.MaxScrollCount),
 			}
 			result := appServer.handleUserProfile(ctx, argsMap)
 			return convertToMCPResult(result), nil, nil

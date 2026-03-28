@@ -32,7 +32,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-.claude/
+# .claude/
 
 # Build artifacts
 xiaohongshu-mcp
@@ -47,3 +47,5 @@ xiaohongshu-login
 download_files/
 xiaohongshu_zhihu_mcp
 login-tool
+test_results/
+*cookies*.txt

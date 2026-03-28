@@ -5,3 +5,4 @@
 - 我需要: 1.本地 review; 2.远程 PR review.
 - 不要过度设计, 保持代码的简洁和易读.
 - 使用中文注释，一定要简洁明了.专业名词可以用英文.
+- 小红书 xsec_token 与来源路径绑定: 主页列表的 token 对应 `/explore/{id}?xsec_source=pc_feed`, 分享链接的 token 对应 `/discovery/item/{id}?xsec_source=pc_share`. 当 `feeds/detail`(explore路径) 失败时, 应自动回退到 `fetch_note_by_url`(discovery/item路径) 重试, 两种路径的 token 校验逻辑不同.

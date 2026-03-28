@@ -218,7 +218,14 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 	}
 
 	// 获取用户信息
-	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken)
+	maxScrollCount := req.MaxScrollCount
+	if maxScrollCount < 1 {
+		maxScrollCount = 1
+	}
+	if maxScrollCount > 500 {
+		maxScrollCount = 500
+	}
+	result, err := s.xiaohongshuService.UserProfile(c.Request.Context(), req.UserID, req.XsecToken, maxScrollCount)
 	if err != nil {
 		respondError(c, http.StatusInternalServerError, "GET_USER_PROFILE_FAILED",
 			"获取用户主页失败", err.Error())

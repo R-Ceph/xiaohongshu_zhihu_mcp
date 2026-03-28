@@ -743,6 +743,62 @@ func (s *AppServer) handleFetchNoteByURL(ctx context.Context, args map[string]an
 
 // --- 知乎 MCP handlers ---
 
+// handleGetUserShareLinks 处理获取用户所有笔记分享链接
+func (s *AppServer) handleGetUserShareLinks(ctx context.Context, args GetUserShareLinksArgs) *MCPToolResult {
+	logrus.Infof("MCP: 获取用户 %s 所有笔记分享链接", args.UserID)
+
+	if args.UserID == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取失败: 缺少 user_id 参数"}},
+			IsError: true,
+		}
+	}
+	if args.XsecToken == "" {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取失败: 缺少 xsec_token 参数"}},
+			IsError: true,
+		}
+	}
+
+	maxScroll := args.MaxScrollCount
+	if maxScroll <= 0 {
+		maxScroll = 5
+	}
+
+	results, err := s.xiaohongshuService.GetUserShareLinks(ctx, args.UserID, args.XsecToken, maxScroll)
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: "获取分享链接失败: " + err.Error()}},
+			IsError: true,
+		}
+	}
+
+	// 统计成功/失败数
+	successCount := 0
+	for _, r := range results {
+		if r.Error == "" {
+			successCount++
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(map[string]any{
+		"total":   len(results),
+		"success": successCount,
+		"failed":  len(results) - successCount,
+		"results": results,
+	}, "", "  ")
+	if err != nil {
+		return &MCPToolResult{
+			Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("序列化失败: %v", err)}},
+			IsError: true,
+		}
+	}
+
+	return &MCPToolResult{
+		Content: []MCPContent{{Type: "text", Text: string(jsonData)}},
+	}
+}
+
 // handleZhihuCheckLoginStatus 处理检查知乎登录状态
 func (s *AppServer) handleZhihuCheckLoginStatus(ctx context.Context) *MCPToolResult {
 	logrus.Info("MCP: 检查知乎登录状态")

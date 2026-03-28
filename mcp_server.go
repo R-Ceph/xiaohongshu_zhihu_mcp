@@ -115,6 +115,13 @@ type FavoriteFeedArgs struct {
 	Unfavorite bool   `json:"unfavorite,omitempty" jsonschema:"是否取消收藏，true为取消收藏，false或未设置则为收藏"`
 }
 
+// GetUserShareLinksArgs 获取用户所有笔记分享链接的参数
+type GetUserShareLinksArgs struct {
+	UserID         string `json:"user_id" jsonschema:"小红书用户ID，从用户主页URL或Feed列表获取"`
+	XsecToken      string `json:"xsec_token" jsonschema:"访问令牌，从Feed列表或搜索结果的xsecToken字段获取"`
+	MaxScrollCount int    `json:"max_scroll_count,omitempty" jsonschema:"加载笔记时的最大滚动次数（1-500），默认5。值越大获取的笔记越多，耗时也越长"`
+}
+
 // InitMCPServer 初始化 MCP Server
 func InitMCPServer(appServer *AppServer) *mcp.Server {
 	// 创建 MCP Server
@@ -485,9 +492,25 @@ func registerTools(server *mcp.Server, appServer *AppServer) {
 		}),
 	)
 
+	// 工具 15: 获取用户所有笔记的分享链接
+	mcp.AddTool(server,
+		&mcp.Tool{
+			Name:        "get_user_share_links",
+			Description: "获取指定小红书用户主页上所有笔记的分享链接（xhslink.com 短链）。会自动滚动加载更多笔记，然后逐个打开笔记页面模拟点击分享按钮获取链接。注意：笔记数量较多时耗时较长（每条约10秒）。",
+			Annotations: &mcp.ToolAnnotations{
+				Title:        "Get User Share Links",
+				ReadOnlyHint: true,
+			},
+		},
+		withPanicRecovery("get_user_share_links", func(ctx context.Context, req *mcp.CallToolRequest, args GetUserShareLinksArgs) (*mcp.CallToolResult, any, error) {
+			result := appServer.handleGetUserShareLinks(ctx, args)
+			return convertToMCPResult(result), nil, nil
+		}),
+	)
+
 	// --- 知乎工具 ---
 
-	// 工具 15: 检查知乎登录状态
+	// 工具 16: 检查知乎登录状态
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "zhihu_check_login_status",

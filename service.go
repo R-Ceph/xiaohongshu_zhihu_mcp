@@ -459,6 +459,19 @@ func (s *XiaohongshuService) UserProfile(ctx context.Context, userID, xsecToken 
 
 }
 
+// GetUserShareLinks 获取指定用户主页所有笔记的分享链接。
+// 先加载用户主页（支持滚动翻页），再逐个打开笔记页面模拟点击分享按钮获取链接。
+func (s *XiaohongshuService) GetUserShareLinks(ctx context.Context, userID, xsecToken string, maxScrollCount int) ([]xiaohongshu.ShareLinkResult, error) {
+	b := newBrowser()
+	defer b.Close()
+
+	page := b.NewPage()
+	defer page.Close()
+
+	action := xiaohongshu.NewShareLinkAction(page)
+	return action.GetUserAllShareLinks(ctx, userID, xsecToken, maxScrollCount)
+}
+
 // PostCommentToFeed 发表评论到Feed
 func (s *XiaohongshuService) PostCommentToFeed(ctx context.Context, feedID, xsecToken, content string) (*PostCommentResponse, error) {
 	b := newBrowser()

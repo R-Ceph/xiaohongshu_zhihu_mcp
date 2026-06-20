@@ -103,6 +103,7 @@ type FeedDetail struct {
 	User         User              `json:"user"`
 	InteractInfo InteractInfo      `json:"interactInfo"`
 	ImageList    []DetailImageInfo `json:"imageList"`
+	VideoURL     string            `json:"videoUrl,omitempty"` // 视频笔记的真实 mp4 链接
 }
 
 // DetailImageInfo 表示详情页的图片信息

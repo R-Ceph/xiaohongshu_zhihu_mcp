@@ -856,6 +856,12 @@ func (f *FeedDetailAction) extractFeedDetail(page *rod.Page, feedID string) (*Fe
 		return nil, fmt.Errorf("feed %s not found in noteDetailMap", feedID)
 	}
 
+	// 视频笔记补充真实 mp4 链接
+	if noteDetail.Note.Type == "video" {
+		_, videoURL := extractVideoURL(page)
+		noteDetail.Note.VideoURL = videoURL
+	}
+
 	return &FeedDetailResponse{
 		Note:     noteDetail.Note,
 		Comments: noteDetail.Comments,
@@ -1033,6 +1039,11 @@ func (f *FeedDetailAction) extractFeedDetailFromPage(page *rod.Page) (*FeedDetai
 
 	// 取第一个条目（页面只会展示一个笔记）
 	for _, noteDetail := range noteDetailMap {
+		// 视频笔记补充真实 mp4 链接
+		if noteDetail.Note.Type == "video" {
+			_, videoURL := extractVideoURL(page)
+			noteDetail.Note.VideoURL = videoURL
+		}
 		return &FeedDetailResponse{
 			Note:     noteDetail.Note,
 			Comments: noteDetail.Comments,

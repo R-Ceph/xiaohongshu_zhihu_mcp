@@ -236,6 +236,44 @@ func (s *AppServer) userProfileHandler(c *gin.Context) {
 	respondSuccess(c, map[string]any{"data": result}, "result.Message")
 }
 
+// userShareLinksHandler 获取用户主页所有笔记的分享链接（含视频真实 URL）
+func (s *AppServer) userShareLinksHandler(c *gin.Context) {
+	var req UserShareLinksRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "INVALID_REQUEST", "请求参数错误", err.Error())
+		return
+	}
+
+	maxScrollCount := req.MaxScrollCount
+	if maxScrollCount < 1 {
+		maxScrollCount = 5
+	}
+	if maxScrollCount > 500 {
+		maxScrollCount = 500
+	}
+
+	results, err := s.xiaohongshuService.GetUserShareLinks(c.Request.Context(), req.UserID, req.XsecToken, maxScrollCount)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "GET_SHARE_LINKS_FAILED", "获取分享链接失败", err.Error())
+		return
+	}
+
+	successCount := 0
+	for _, r := range results {
+		if r.Error == "" {
+			successCount++
+		}
+	}
+
+	c.Set("account", "ai-report")
+	respondSuccess(c, map[string]any{
+		"total":   len(results),
+		"success": successCount,
+		"failed":  len(results) - successCount,
+		"results": results,
+	}, "")
+}
+
 // postCommentHandler 发表评论到Feed
 func (s *AppServer) postCommentHandler(c *gin.Context) {
 	var req PostCommentRequest

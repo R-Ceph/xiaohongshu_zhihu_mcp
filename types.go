@@ -112,6 +112,13 @@ type UserProfileRequest struct {
 	MaxScrollCount int    `json:"max_scroll_count,omitempty"` // 最大滚动次数，1-20，默认1（不额外滚动）
 }
 
+// UserShareLinksRequest 获取用户所有笔记分享链接请求
+type UserShareLinksRequest struct {
+	UserID         string `json:"user_id" binding:"required"`
+	XsecToken      string `json:"xsec_token" binding:"required"`
+	MaxScrollCount int    `json:"max_scroll_count,omitempty"` // 最大滚动次数，默认5
+}
+
 // ActionResult 通用动作响应（点赞/收藏等）
 type ActionResult struct {
 	FeedID  string `json:"feed_id"`

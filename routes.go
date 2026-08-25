@@ -23,6 +23,9 @@ func setupRoutes(appServer *AppServer) *gin.Engine {
 	// 健康检查
 	router.GET("/health", healthHandler)
 
+	// 本地调试 Web 控制台（嵌入静态页面）
+	registerWebUI(router)
+
 	// MCP 端点 - 使用官方 SDK 的 Streamable HTTP Handler
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {

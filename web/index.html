@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>小红书 · 知乎 MCP 控制台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/web/styles.css" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">XZ</span>
+      <div class="brand-text">
+        <strong>xiaohongshu_zhihu_mcp</strong>
+        <span>本地调试控制台</span>
+      </div>
+    </div>
+    <div class="topbar-meta">
+      <span id="health-pill" class="pill pill-idle">检测中</span>
+      <span class="meta-port">:18060</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="rail">
+      <p class="rail-label">平台</p>
+      <nav class="tabs" role="tablist">
+        <button class="tab is-active" data-panel="xhs" type="button">小红书</button>
+        <button class="tab" data-panel="zhihu" type="button">知乎</button>
+        <button class="tab" data-panel="apis" type="button">接口一览</button>
+      </nav>
+      <div class="rail-note">
+        <p>页面直接调用本机 REST API，适合扫码登录、搜索与抓取调试。</p>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <!-- 小红书 -->
+      <div class="panel is-active" id="panel-xhs" role="tabpanel">
+        <div class="hero-line">
+          <h1>小红书</h1>
+          <p>登录状态、扫码、搜索笔记、按链接拉取详情。</p>
+        </div>
+
+        <div class="action-grid">
+          <article class="action">
+            <header>
+              <h2>登录状态</h2>
+              <button type="button" class="btn ghost" data-action="xhs-status">刷新</button>
+            </header>
+            <div class="status-row">
+              <span id="xhs-status-dot" class="dot"></span>
+              <span id="xhs-status-text">未检查</span>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn primary" data-action="xhs-qrcode">获取二维码</button>
+              <button type="button" class="btn danger" data-action="xhs-logout">清除 Cookie</button>
+            </div>
+            <div id="xhs-qrcode" class="qrcode-box empty">二维码将显示在这里</div>
+          </article>
+
+          <article class="action">
+            <header>
+              <h2>搜索笔记</h2>
+            </header>
+            <label class="field">
+              <span>关键词</span>
+              <input id="xhs-keyword" type="text" placeholder="例如：周末咖啡" />
+            </label>
+            <button type="button" class="btn primary" data-action="xhs-search">搜索</button>
+          </article>
+
+          <article class="action wide">
+            <header>
+              <h2>按链接获取笔记</h2>
+            </header>
+            <label class="field">
+              <span>笔记 URL</span>
+              <input id="xhs-note-url" type="url" placeholder="https://www.xiaohongshu.com/explore/..." />
+            </label>
+            <button type="button" class="btn primary" data-action="xhs-fetch-url">拉取详情</button>
+          </article>
+        </div>
+      </div>
+
+      <!-- 知乎 -->
+      <div class="panel" id="panel-zhihu" role="tabpanel" hidden>
+        <div class="hero-line">
+          <h1>知乎</h1>
+          <p>登录状态、扫码、抓取回答/文章页面内容。</p>
+        </div>
+
+        <div class="action-grid">
+          <article class="action">
+            <header>
+              <h2>登录状态</h2>
+              <button type="button" class="btn ghost" data-action="zhihu-status">刷新</button>
+            </header>
+            <div class="status-row">
+              <span id="zhihu-status-dot" class="dot"></span>
+              <span id="zhihu-status-text">未检查</span>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn primary" data-action="zhihu-qrcode">获取二维码</button>
+              <button type="button" class="btn danger" data-action="zhihu-logout">清除 Cookie</button>
+            </div>
+            <div id="zhihu-qrcode" class="qrcode-box empty">二维码将显示在这里</div>
+          </article>
+
+          <article class="action wide">
+            <header>
+              <h2>抓取页面</h2>
+            </header>
+            <label class="field">
+              <span>知乎 URL</span>
+              <input id="zhihu-page-url" type="url" placeholder="https://www.zhihu.com/question/..." />
+            </label>
+            <button type="button" class="btn primary" data-action="zhihu-page">抓取</button>
+          </article>
+        </div>
+      </div>
+
+      <!-- API 一览 -->
+      <div class="panel" id="panel-apis" role="tabpanel" hidden>
+        <div class="hero-line">
+          <h1>接口一览</h1>
+          <p>当前服务已暴露的 REST 端点，便于联调对照。</p>
+        </div>
+        <ul class="api-list" id="api-list"></ul>
+      </div>
+
+      <section class="result-pane">
+        <header>
+          <h2>响应</h2>
+          <button type="button" class="btn ghost" id="clear-result">清空</button>
+        </header>
+        <pre id="result"><code>等待操作…</code></pre>
+      </section>
+    </section>
+  </main>
+
+  <script src="/web/app.js"></script>
+</body>
+</html>
